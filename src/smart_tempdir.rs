@@ -1,7 +1,7 @@
 use std::fs;
 use std::io;
 use std::mem;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use tempfile::{Builder, TempDir};
 
 pub struct SmartTempDir {
@@ -11,6 +11,11 @@ pub struct SmartTempDir {
 impl SmartTempDir {
     pub fn path(&self) -> &Path {
         self.temp_dir.as_ref().unwrap().path()
+    }
+
+    pub fn relative_path(&self) -> PathBuf {
+        let cwd = Path::new("./").canonicalize().unwrap();
+        pathdiff::diff_paths(self.path(), cwd).unwrap()
     }
 
     fn remove_all(&mut self) -> io::Result<()> {

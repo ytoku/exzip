@@ -77,17 +77,18 @@ fn actual_inner_path(outer_path: &Path) -> Option<PathBuf> {
 
 fn extract_one_directory(zipfile: &Path, target_path: &Path, options: Vec<&str>) -> io::Result<()> {
     let temp_dir = smart_tempdir_in(zipfile.parent().unwrap(), "exzip-")?;
+    let temp_dir_path = temp_dir.relative_path();
 
     run_command(
         Command::new("unzip")
             .args(options)
             .arg("-d")
-            .arg(temp_dir.path())
+            .arg(&temp_dir_path)
             .arg(zipfile),
     )?;
 
     let inner_path =
-        actual_inner_path(temp_dir.path()).expect("Failed to determine actual inner path");
+        actual_inner_path(&temp_dir_path).expect("Failed to determine actual inner path");
 
     fs::set_permissions(
         &inner_path,
@@ -95,24 +96,9 @@ fn extract_one_directory(zipfile: &Path, target_path: &Path, options: Vec<&str>)
     )
     .expect("Failed to set permissions");
 
-    // zipfile:                       dir/target.zip
-    // base_path:                     dir
-    // base_path_canonical:  /path/to/dir
-    // inner_path_canonical: /path/to/dir/exzip-XXXXXX/a
-    // relative_inner_path:           dir/exzip-XXXXXX/a
-    let relative_inner_path = {
-        let base_path = zipfile.parent().unwrap();
-        let inner_path_canonical = inner_path.canonicalize().unwrap();
-        let base_path_canonical = base_path.canonicalize().unwrap();
-        base_path.join(
-            inner_path_canonical
-                .strip_prefix(base_path_canonical)
-                .unwrap(),
-        )
-    };
     println!(
         "rename {} -> {}",
-        relative_inner_path.display(),
+        inner_path.display(),
         target_path.display()
     );
 
@@ -131,24 +117,18 @@ fn extract_into_target_path(
     options: Vec<&str>,
 ) -> io::Result<()> {
     let temp_dir = smart_tempdir_in(zipfile.parent().unwrap(), "exzip-")?;
+    let temp_dir_path = temp_dir.relative_path();
     run_command(
         Command::new("unzip")
             .args(options)
             .arg("-d")
-            .arg(temp_dir.path())
+            .arg(&temp_dir_path)
             .arg(zipfile),
     )?;
 
-    // zipfile:                dir/target.zip
-    // base_path:              dir
-    // relative_temp_dir_path: dir/exzip-XXXXXX
-    let relative_temp_dir_path = {
-        let base_path = zipfile.parent().unwrap();
-        base_path.join(temp_dir.path().file_name().unwrap())
-    };
     println!(
         "rename {} -> {}",
-        relative_temp_dir_path.display(),
+        &temp_dir_path.display(),
         target_path.display()
     );
 
