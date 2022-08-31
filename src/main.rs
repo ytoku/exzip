@@ -98,8 +98,8 @@ fn extract_one_directory(zipfile: &Path, target_path: &Path, options: Vec<&str>)
     // zipfile:                       dir/target.zip
     // base_path:                     dir
     // base_path_canonical:  /path/to/dir
-    // inner_path_canonical: /path/to/dir/.tmpXXXXXX/a
-    // relative_inner_path:           dir/.tmpXXXXXX/a
+    // inner_path_canonical: /path/to/dir/exzip-XXXXXX/a
+    // relative_inner_path:           dir/exzip-XXXXXX/a
     let relative_inner_path = {
         let base_path = zipfile.parent().unwrap();
         let inner_path_canonical = inner_path.canonicalize().unwrap();
