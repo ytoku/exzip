@@ -130,16 +130,33 @@ fn extract_into_target_path(
     target_path: &Path,
     options: Vec<&str>,
 ) -> io::Result<()> {
-    if target_path.exists() {
-        fs::remove_dir_all(target_path).expect("Failed to remove the old directory");
-    }
+    let temp_dir = smart_tempdir_in(zipfile.parent().unwrap(), "exzip-")?;
     run_command(
         Command::new("unzip")
             .args(options)
             .arg("-d")
-            .arg(target_path)
+            .arg(temp_dir.path())
             .arg(zipfile),
     )?;
+
+    // zipfile:                dir/target.zip
+    // base_path:              dir
+    // relative_temp_dir_path: dir/exzip-XXXXXX
+    let relative_temp_dir_path = {
+        let base_path = zipfile.parent().unwrap();
+        base_path.join(temp_dir.path().file_name().unwrap())
+    };
+    println!(
+        "rename {} -> {}",
+        relative_temp_dir_path.display(),
+        target_path.display()
+    );
+
+    if target_path.exists() {
+        fs::remove_dir_all(target_path).expect("Failed to remove the old directory");
+    }
+    fs::rename(temp_dir.path(), target_path).expect("Failed to move the directory");
+
     Ok(())
 }
 
