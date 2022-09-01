@@ -1,15 +1,15 @@
 mod smart_tempdir;
 
-use clap::Parser;
-use smart_tempdir::smart_tempdir_in;
-use std::fs;
-use std::fs::File;
-use std::io;
-use std::io::BufReader;
+use std::fs::{self, File};
+use std::io::{self, BufReader};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+
+use clap::Parser;
+
+use crate::smart_tempdir::smart_tempdir_in;
 
 const EXIT_ERROR: i32 = 1;
 const EXIT_INTERRUPT: i32 = 130;
