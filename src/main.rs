@@ -37,7 +37,7 @@ fn in_one_directory(zipfile: &Path) -> bool {
         let file = archive.by_index_raw(i).unwrap();
         let fname = file.name_raw();
 
-        let parts: Vec<_> = fname.split(|c| *c == b'/').collect();
+        let parts: Vec<_> = fname.split(|&c| c == b'/').collect();
         if parts.len() < 2 {
             return false;
         }
