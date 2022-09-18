@@ -43,6 +43,10 @@ fn in_one_directory(zipfile: &Path) -> bool {
         }
         let cur_dirname = parts[0];
 
+        if cur_dirname == b"__MACOSX" {
+            continue;
+        }
+
         match &prev_dirname {
             None => {
                 prev_dirname = Some(Vec::from(cur_dirname));
@@ -66,7 +70,16 @@ fn run_command(command: &mut Command) -> io::Result<()> {
 }
 
 fn actual_inner_path(outer_path: &Path) -> Option<PathBuf> {
-    let inner_entries: Vec<io::Result<fs::DirEntry>> = fs::read_dir(&outer_path).unwrap().collect();
+    let inner_entries: Vec<io::Result<fs::DirEntry>> = fs::read_dir(&outer_path)
+        .unwrap()
+        .filter(|entry| {
+            if let Ok(entry) = entry.as_ref() {
+                entry.file_name() != "__MACOSX"
+            } else {
+                true
+            }
+        })
+        .collect();
     if inner_entries.len() != 1 {
         return None;
     }
