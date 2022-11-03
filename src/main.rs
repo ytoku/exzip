@@ -1,4 +1,4 @@
-mod smart_tempdir;
+mod tempfile_utils;
 
 use std::fs::{self, File};
 use std::io::{self, BufReader};
@@ -9,7 +9,7 @@ use std::sync::Arc;
 
 use clap::Parser;
 
-use crate::smart_tempdir::smart_tempdir_in;
+use crate::tempfile_utils::{tempdir_with_prefix_in, RelativePathFrom};
 
 const EXIT_ERROR: i32 = 1;
 const EXIT_INTERRUPT: i32 = 130;
@@ -89,8 +89,8 @@ fn actual_inner_path(outer_path: &Path) -> Option<PathBuf> {
 }
 
 fn extract_one_directory(zipfile: &Path, target_path: &Path, options: Vec<&str>) -> io::Result<()> {
-    let temp_dir = smart_tempdir_in(zipfile.parent().unwrap(), "exzip-")?;
-    let temp_dir_path = temp_dir.relative_path();
+    let temp_dir = tempdir_with_prefix_in(zipfile.parent().unwrap(), "exzip-")?;
+    let temp_dir_path = temp_dir.relative_path_from("./");
 
     run_command(
         Command::new("unzip")
@@ -129,8 +129,8 @@ fn extract_into_target_path(
     target_path: &Path,
     options: Vec<&str>,
 ) -> io::Result<()> {
-    let temp_dir = smart_tempdir_in(zipfile.parent().unwrap(), "exzip-")?;
-    let temp_dir_path = temp_dir.relative_path();
+    let temp_dir = tempdir_with_prefix_in(zipfile.parent().unwrap(), "exzip-")?;
+    let temp_dir_path = temp_dir.relative_path_from("./");
     run_command(
         Command::new("unzip")
             .args(options)
