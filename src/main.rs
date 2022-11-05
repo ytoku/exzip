@@ -70,7 +70,7 @@ fn run_command(command: &mut Command) -> io::Result<()> {
 }
 
 fn actual_inner_path(outer_path: &Path) -> Option<PathBuf> {
-    let inner_entries: Vec<io::Result<fs::DirEntry>> = fs::read_dir(&outer_path)
+    let inner_entries: Vec<io::Result<fs::DirEntry>> = fs::read_dir(outer_path)
         .unwrap()
         .filter(|entry| {
             if let Ok(entry) = entry.as_ref() {
