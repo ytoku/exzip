@@ -15,15 +15,14 @@ const EXIT_ERROR: i32 = 1;
 const EXIT_INTERRUPT: i32 = 130;
 
 #[derive(Parser, Debug)]
-#[clap(author, version, about, long_about = None)]
+#[command(author, version, about, long_about = None)]
 struct Args {
-    #[clap(short = 'O', value_parser)]
+    #[arg(short = 'O')]
     oenc: Option<String>,
 
-    #[clap(short = 'I', value_parser)]
+    #[arg(short = 'I')]
     ienc: Option<String>,
 
-    #[clap(value_parser)]
     zipfiles: Vec<String>,
 }
 
