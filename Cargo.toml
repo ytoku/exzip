@@ -9,7 +9,7 @@ edition = "2021"
 clap = { version = "4.0.27", features = ["derive"] }
 ctrlc = "3.2.3"
 pathdiff = "0.2.1"
-tempfile = "3.3.0"
+tempfile = "3.4.0"
 zip = { version = "0.6.2", default-features = false }
 
 [profile.release]
