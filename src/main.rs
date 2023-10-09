@@ -83,7 +83,7 @@ fn actual_inner_path(outer_path: &Path) -> Option<PathBuf> {
         return None;
     }
     let inner_dirname = inner_entries[0].as_ref().ok()?.file_name();
-    let inner_path = outer_path.join(&inner_dirname);
+    let inner_path = outer_path.join(inner_dirname);
     Some(inner_path)
 }
 
@@ -177,7 +177,7 @@ fn extract(zipfile: &Path, target_path: &Path, one_directory: bool, args: &Args)
 fn main() {
     let interrupted = Arc::new(AtomicBool::new(false));
     {
-        let interrupted = interrupted.clone();
+        let interrupted = Arc::clone(&interrupted);
         ctrlc::set_handler(move || {
             interrupted.store(true, Ordering::SeqCst);
         })
