@@ -7,6 +7,7 @@ use std::process::Command;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
+use anyhow::Result;
 use clap::Parser;
 
 use crate::tempfile_utils::{tempdir_with_prefix_in, RelativePathFrom};
@@ -87,7 +88,7 @@ fn actual_inner_path(outer_path: &Path) -> Option<PathBuf> {
     Some(inner_path)
 }
 
-fn extract_one_directory(zipfile: &Path, target_path: &Path, options: Vec<&str>) -> io::Result<()> {
+fn extract_one_directory(zipfile: &Path, target_path: &Path, options: Vec<&str>) -> Result<()> {
     let temp_dir = tempdir_with_prefix_in(zipfile.parent().unwrap(), "exzip-")?;
     let temp_dir_path = temp_dir.relative_path_from("./");
 
@@ -123,11 +124,7 @@ fn extract_one_directory(zipfile: &Path, target_path: &Path, options: Vec<&str>)
     Ok(())
 }
 
-fn extract_into_target_path(
-    zipfile: &Path,
-    target_path: &Path,
-    options: Vec<&str>,
-) -> io::Result<()> {
+fn extract_into_target_path(zipfile: &Path, target_path: &Path, options: Vec<&str>) -> Result<()> {
     let temp_dir = tempdir_with_prefix_in(zipfile.parent().unwrap(), "exzip-")?;
     let temp_dir_path = temp_dir.relative_path_from("./");
     run_command(
@@ -152,7 +149,7 @@ fn extract_into_target_path(
     Ok(())
 }
 
-fn extract(zipfile: &Path, target_path: &Path, one_directory: bool, args: &Args) -> io::Result<()> {
+fn extract(zipfile: &Path, target_path: &Path, one_directory: bool, args: &Args) -> Result<()> {
     let mut options: Vec<&str> = vec![];
     if let Some(ienc) = &args.ienc {
         options.push("-I");
