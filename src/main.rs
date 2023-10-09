@@ -1,18 +1,18 @@
 mod encoding;
+mod interrupt;
 mod tempfile_utils;
 mod zip_ext;
 
 use std::fs::{self, File};
 use std::io::{self, BufReader};
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
 
 use anyhow::{bail, Context as _, Result};
 use clap::Parser;
 use encoding_rs::Encoding;
 
 use crate::encoding::get_encoding;
+use crate::interrupt::{interrupted, register_ctrlc};
 use crate::tempfile_utils::{tempdir_with_prefix_in, RelativePathFrom};
 use crate::zip_ext::ZipFileExt;
 
@@ -90,10 +90,13 @@ where
         } else if file.is_file() {
             fs::create_dir_all(dst_path.parent().unwrap())?;
             let mut outfile = File::create(&dst_path)?;
+            // TODO: interrupt
             io::copy(&mut file, &mut outfile)?;
         }
 
-        // TODO: interrupt
+        if interrupted() {
+            bail!("Interrupted");
+        }
     }
     Ok(true)
 }
@@ -171,14 +174,7 @@ fn extract(zipfile: &Path, target_path: &Path, args: &Args) -> Result<()> {
 }
 
 fn main() {
-    let interrupted = Arc::new(AtomicBool::new(false));
-    {
-        let interrupted = Arc::clone(&interrupted);
-        ctrlc::set_handler(move || {
-            interrupted.store(true, Ordering::SeqCst);
-        })
-        .expect("Error setting Ctrl-C handler");
-    }
+    register_ctrlc();
 
     let args = Args::parse();
 
@@ -204,7 +200,7 @@ fn main() {
             success = false;
         });
 
-        if interrupted.load(Ordering::SeqCst) {
+        if interrupted() {
             std::process::exit(EXIT_INTERRUPT);
         }
         if !success {
