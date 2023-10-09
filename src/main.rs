@@ -1,16 +1,20 @@
+mod encoding;
 mod tempfile_utils;
+mod zip_ext;
 
 use std::fs::{self, File};
 use std::io::{self, BufReader};
 use std::path::{Path, PathBuf};
-use std::process::Command;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
-use anyhow::Result;
+use anyhow::{bail, Context as _, Result};
 use clap::Parser;
+use encoding_rs::Encoding;
 
+use crate::encoding::get_encoding;
 use crate::tempfile_utils::{tempdir_with_prefix_in, RelativePathFrom};
+use crate::zip_ext::ZipFileExt;
 
 const EXIT_ERROR: i32 = 1;
 const EXIT_INTERRUPT: i32 = 130;
@@ -21,119 +25,136 @@ struct Args {
     #[arg(short = 'O')]
     oenc: Option<String>,
 
-    #[arg(short = 'I')]
-    ienc: Option<String>,
-
     zipfiles: Vec<String>,
 }
 
-fn in_one_directory(zipfile: &Path) -> bool {
+fn sanitize_path(path: &Path) -> Option<PathBuf> {
+    let mut result = PathBuf::new();
+    for component in path.components() {
+        match component {
+            std::path::Component::Normal(os_str) => {
+                // Reject a component which contains NUL character
+                #[cfg(windows)]
+                compile_error!("wide character is not supported");
+                #[cfg(unix)]
+                {
+                    use std::os::unix::ffi::OsStrExt;
+                    if os_str.as_bytes().iter().any(|&x| x == 0u8) {
+                        return None;
+                    }
+                }
+                result.push(os_str);
+            }
+            std::path::Component::ParentDir => {
+                if result.as_os_str() == "" {
+                    return None;
+                }
+                result.pop();
+            }
+            // Remove Prefix(C:), RootDir(/), CurDir(.)
+            _ => {}
+        }
+    }
+    Some(result)
+}
+
+fn is_ignored_file(path: &Path) -> bool {
+    path.iter().any(|name| name == "__MACOSX")
+}
+
+fn unzip<R>(
+    archive: &mut zip::ZipArchive<R>,
+    inner_root: &Path,
+    dst_root: &Path,
+    encoding: &'static Encoding,
+) -> Result<bool>
+where
+    R: io::Read + io::Seek,
+{
+    for i in 0..archive.len() {
+        let mut file = archive.by_index(i).unwrap();
+        let unstripped_path =
+            sanitize_path(&file.decoded_name_lossy(encoding)).context("Malformed zip file")?;
+        let Ok(path) = unstripped_path.strip_prefix(inner_root) else {
+            println!("Skip {}", unstripped_path.to_string_lossy());
+            if !is_ignored_file(&unstripped_path) {
+                bail!("Unexpected strip_prefix: {:?}", inner_root);
+            }
+            continue;
+        };
+        let dst_path = dst_root.join(path);
+
+        println!("{}", unstripped_path.to_string_lossy());
+        if file.is_dir() {
+            fs::create_dir_all(dst_path)?;
+        } else if file.is_file() {
+            fs::create_dir_all(dst_path.parent().unwrap())?;
+            let mut outfile = File::create(&dst_path)?;
+            io::copy(&mut file, &mut outfile)?;
+        }
+
+        // TODO: interrupt
+    }
+    Ok(true)
+}
+
+fn get_inner_root<R>(
+    archive: &mut zip::ZipArchive<R>,
+    encoding: &'static Encoding,
+) -> Option<PathBuf>
+where
+    R: io::Read + io::Seek,
+{
+    if archive.is_empty() {
+        return Some(PathBuf::new());
+    }
+
+    let mut root: Option<PathBuf> = None;
+    for i in 0..archive.len() {
+        let file = archive.by_index_raw(i).unwrap();
+        let mut path = sanitize_path(&file.decoded_name_lossy(encoding))?;
+        if is_ignored_file(&path) {
+            continue;
+        }
+        if !file.is_dir() {
+            path.pop();
+        }
+        if let Some(root) = &root {
+            if !path.starts_with(root) {
+                return Some(PathBuf::new());
+            }
+        } else if let Some(name) = path.iter().next() {
+            // The first found directory
+            root = Some(PathBuf::from(name));
+        } else {
+            // There is a file in root
+            return Some(PathBuf::new());
+        }
+    }
+    root
+}
+
+fn extract(zipfile: &Path, target_path: &Path, args: &Args) -> Result<()> {
+    // TODO: guessing encoding
+    let encoding_name = args.oenc.as_deref().unwrap_or("shift_jis");
+
+    let Some(encoding) = get_encoding(encoding_name) else {
+        bail!("Unknown encoding {}", encoding_name);
+    };
+
+    println!("unzip {}", zipfile.display());
+
+    let temp_dir = tempdir_with_prefix_in(zipfile.parent().unwrap(), "exzip-")?;
+    let temp_dir_path = temp_dir.relative_path_from("./");
+
     let file = File::open(zipfile).unwrap();
     let reader = BufReader::new(file);
     let mut archive = zip::ZipArchive::new(reader).unwrap();
 
-    let mut prev_dirname: Option<Vec<u8>> = None;
-    for i in 0..archive.len() {
-        let file = archive.by_index_raw(i).unwrap();
-        let fname = file.name_raw();
+    let inner_root =
+        get_inner_root(&mut archive, encoding).context("Failed to determine inner root")?;
 
-        let parts: Vec<_> = fname.split(|&c| c == b'/').collect();
-        if parts.len() < 2 {
-            return false;
-        }
-        let cur_dirname = parts[0];
-
-        if cur_dirname == b"__MACOSX" {
-            continue;
-        }
-
-        match &prev_dirname {
-            None => {
-                prev_dirname = Some(Vec::from(cur_dirname));
-            }
-            Some(prev) => {
-                if prev != cur_dirname {
-                    return false;
-                }
-            }
-        }
-    }
-    prev_dirname.is_some()
-}
-
-fn run_command(command: &mut Command) -> io::Result<()> {
-    let exit_status = command.spawn()?.wait()?;
-    if !exit_status.success() {
-        return Err(io::Error::new(io::ErrorKind::Other, "Command failed"));
-    }
-    Ok(())
-}
-
-fn actual_inner_path(outer_path: &Path) -> Option<PathBuf> {
-    let inner_entries: Vec<io::Result<fs::DirEntry>> = fs::read_dir(outer_path)
-        .unwrap()
-        .filter(|entry| {
-            if let Ok(entry) = entry.as_ref() {
-                entry.file_name() != "__MACOSX"
-            } else {
-                true
-            }
-        })
-        .collect();
-    if inner_entries.len() != 1 {
-        return None;
-    }
-    let inner_dirname = inner_entries[0].as_ref().ok()?.file_name();
-    let inner_path = outer_path.join(inner_dirname);
-    Some(inner_path)
-}
-
-fn extract_one_directory(zipfile: &Path, target_path: &Path, options: Vec<&str>) -> Result<()> {
-    let temp_dir = tempdir_with_prefix_in(zipfile.parent().unwrap(), "exzip-")?;
-    let temp_dir_path = temp_dir.relative_path_from("./");
-
-    run_command(
-        Command::new("unzip")
-            .args(options)
-            .arg("-d")
-            .arg(&temp_dir_path)
-            .arg(zipfile),
-    )?;
-
-    let inner_path =
-        actual_inner_path(&temp_dir_path).expect("Failed to determine actual inner path");
-
-    fs::set_permissions(
-        &inner_path,
-        std::os::unix::fs::PermissionsExt::from_mode(0o755),
-    )
-    .expect("Failed to set permissions");
-
-    println!(
-        "rename {} -> {}",
-        inner_path.display(),
-        target_path.display()
-    );
-
-    if target_path.exists() {
-        fs::remove_dir_all(target_path).expect("Failed to remove the old directory");
-    }
-    fs::rename(inner_path, target_path).expect("Failed to move the directory");
-
-    temp_dir.close()?;
-    Ok(())
-}
-
-fn extract_into_target_path(zipfile: &Path, target_path: &Path, options: Vec<&str>) -> Result<()> {
-    let temp_dir = tempdir_with_prefix_in(zipfile.parent().unwrap(), "exzip-")?;
-    let temp_dir_path = temp_dir.relative_path_from("./");
-    run_command(
-        Command::new("unzip")
-            .args(options)
-            .arg("-d")
-            .arg(&temp_dir_path)
-            .arg(zipfile),
-    )?;
+    unzip(&mut archive, &inner_root, &temp_dir_path, encoding)?;
 
     println!(
         "rename {} -> {}",
@@ -145,28 +166,6 @@ fn extract_into_target_path(zipfile: &Path, target_path: &Path, options: Vec<&st
         fs::remove_dir_all(target_path).expect("Failed to remove the old directory");
     }
     fs::rename(temp_dir.path(), target_path).expect("Failed to move the directory");
-
-    Ok(())
-}
-
-fn extract(zipfile: &Path, target_path: &Path, one_directory: bool, args: &Args) -> Result<()> {
-    let mut options: Vec<&str> = vec![];
-    if let Some(ienc) = &args.ienc {
-        options.push("-I");
-        options.push(ienc);
-    };
-    if let Some(oenc) = &args.oenc {
-        options.push("-O");
-        options.push(oenc);
-    };
-
-    println!("unzip {} {}", options.join(" "), zipfile.display());
-
-    if one_directory {
-        extract_one_directory(zipfile, target_path, options)?;
-    } else {
-        extract_into_target_path(zipfile, target_path, options)?;
-    }
 
     Ok(())
 }
@@ -198,10 +197,9 @@ fn main() {
         let target_path = Path::new(filename.strip_suffix(".zip").unwrap());
 
         let filepath = Path::new(&filename);
-        let one_directory = in_one_directory(filepath);
 
         let mut success = true;
-        extract(filepath, target_path, one_directory, &args).unwrap_or_else(|err| {
+        extract(filepath, target_path, &args).unwrap_or_else(|err| {
             eprintln!("Error: {:?}", err);
             success = false;
         });
