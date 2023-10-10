@@ -129,6 +129,8 @@ where
             interruptable_copy(&mut file, &mut outfile)?;
         }
 
+        // We won't apply symlinks and permissions by design.
+
         if interrupted() {
             bail!("Interrupted");
         }
