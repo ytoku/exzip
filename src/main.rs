@@ -102,6 +102,13 @@ where
 {
     for i in 0..archive.len() {
         let mut file = archive.by_index(i).unwrap();
+        // The current implementation ignores Language encoding flag
+        // (Bit 11 of general purpose big flag) which means the
+        // filename is encoded by utf-8.  encoding_rs crate does not
+        // reveal the flag but we can get the offset of the central
+        // header by ZipFile::central_header_start. So we can read the
+        // flag from the zip file if we need it.
+        // https://github.com/zip-rs/zip/blob/3e88fe66c941d411cff5cf49778ba08c2ed93801/src/read.rs#L671
         let unstripped_path =
             sanitize_path(&file.decoded_name_lossy(encoding)).context("Malformed zip file")?;
         let Ok(path) = unstripped_path.strip_prefix(inner_root) else {
@@ -165,14 +172,28 @@ where
     root
 }
 
+fn detect_filename_encoding<R>(archive: &mut zip::ZipArchive<R>) -> &'static Encoding
+where
+    R: io::Read + io::Seek,
+{
+    for candidate_encoding in &[encoding_rs::UTF_8, encoding_rs::SHIFT_JIS] {
+        let mut mismatch = false;
+        for i in 0..archive.len() {
+            let file = archive.by_index_raw(i).unwrap();
+            let (_cow, _encoding, malformed) = candidate_encoding.decode(file.name_raw());
+            if malformed {
+                mismatch = true;
+                break;
+            }
+        }
+        if !mismatch {
+            return candidate_encoding;
+        }
+    }
+    encoding_rs::WINDOWS_1252 // latin1
+}
+
 fn extract(zipfile: &Path, target_path: &Path, args: &Args) -> Result<()> {
-    // TODO: guessing encoding
-    let encoding_name = args.oenc.as_deref().unwrap_or("shift_jis");
-
-    let Some(encoding) = get_encoding(encoding_name) else {
-        bail!("Unknown encoding {}", encoding_name);
-    };
-
     println!("unzip {}", zipfile.display());
 
     let temp_dir = tempdir_with_prefix_in(zipfile.parent().unwrap(), "exzip-")?;
@@ -181,6 +202,12 @@ fn extract(zipfile: &Path, target_path: &Path, args: &Args) -> Result<()> {
     let file = File::open(zipfile).unwrap();
     let reader = BufReader::new(file);
     let mut archive = zip::ZipArchive::new(reader).unwrap();
+
+    let encoding = if let Some(encoding_name) = &args.oenc {
+        get_encoding(encoding_name).unwrap()
+    } else {
+        detect_filename_encoding(&mut archive)
+    };
 
     let inner_root =
         get_inner_root(&mut archive, encoding).context("Failed to determine inner root")?;
@@ -205,6 +232,13 @@ fn main() {
     register_ctrlc();
 
     let args = Args::parse();
+
+    if let Some(encoding_name) = &args.oenc {
+        if get_encoding(encoding_name).is_none() {
+            println!("Error: Unknown encoding {}", encoding_name);
+            std::process::exit(EXIT_ERROR);
+        }
+    }
 
     for filename in &args.zipfiles {
         if !filename.ends_with(".zip") {
