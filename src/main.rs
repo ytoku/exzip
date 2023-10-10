@@ -28,6 +28,35 @@ struct Args {
     zipfiles: Vec<String>,
 }
 
+fn interruptable_copy<R, W>(reader: &mut R, writer: &mut W) -> Result<u64>
+where
+    R: io::Read + ?Sized,
+    W: io::Write + ?Sized,
+{
+    let mut written_length = 0usize;
+    let mut buf = [0; 128 * 1024];
+    let mut eof = false;
+    while !eof {
+        let mut pos = 0usize;
+        while pos < buf.len() {
+            let length = reader.read(&mut buf[pos..])?;
+            if length == 0usize {
+                eof = true;
+                break;
+            }
+            pos += length;
+        }
+        writer.write_all(&buf[..pos])?;
+        written_length += pos;
+
+        if interrupted() {
+            bail!("Interrupted");
+        }
+    }
+    writer.flush()?;
+    Ok(written_length as u64)
+}
+
 fn sanitize_path(path: &Path) -> Option<PathBuf> {
     let mut result = PathBuf::new();
     for component in path.components() {
@@ -90,8 +119,7 @@ where
         } else if file.is_file() {
             fs::create_dir_all(dst_path.parent().unwrap())?;
             let mut outfile = File::create(&dst_path)?;
-            // TODO: interrupt
-            io::copy(&mut file, &mut outfile)?;
+            interruptable_copy(&mut file, &mut outfile)?;
         }
 
         if interrupted() {
