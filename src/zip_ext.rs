@@ -1,11 +1,14 @@
 use std::path::PathBuf;
 
+use chrono::{DateTime, Local, LocalResult, TimeZone};
 use zip::read::ZipFile;
 
 use crate::encoding::ZipEncoding;
 
 pub trait ZipFileExt<'a> {
     fn decoded_name_lossy(&self, encoding: ZipEncoding) -> PathBuf;
+
+    fn last_modified_chrono(&self) -> LocalResult<DateTime<Local>>;
 }
 
 impl<'a> ZipFileExt<'a> for ZipFile<'a> {
@@ -18,5 +21,17 @@ impl<'a> ZipFileExt<'a> for ZipFile<'a> {
                 PathBuf::from(decoded_name)
             }
         }
+    }
+
+    fn last_modified_chrono(&self) -> LocalResult<DateTime<Local>> {
+        let zip_dt = self.last_modified();
+        Local.with_ymd_and_hms(
+            zip_dt.year().into(),
+            zip_dt.month().into(),
+            zip_dt.day().into(),
+            zip_dt.hour().into(),
+            zip_dt.minute().into(),
+            zip_dt.second().into(),
+        )
     }
 }

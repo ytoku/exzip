@@ -9,6 +9,7 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{bail, Context as _, Result};
 use clap::Parser;
+use filetime::FileTime;
 
 use crate::encoding::{get_encoding, ZipEncoding};
 use crate::interrupt::{interrupted, register_ctrlc};
@@ -121,12 +122,21 @@ where
 
         println!("{}", unstripped_path.to_string_lossy());
         if file.is_dir() {
-            fs::create_dir_all(dst_path)?;
+            fs::create_dir_all(&dst_path)?;
         } else if file.is_file() {
             fs::create_dir_all(dst_path.parent().unwrap())?;
             let mut outfile = File::create(&dst_path)?;
             interruptable_copy(&mut file, &mut outfile)?;
         }
+
+        // Set last modified time
+        let mtime = FileTime::from_system_time(
+            file.last_modified_chrono()
+                .earliest() // for DST overlap
+                .context("Bad mtime")?
+                .into(),
+        );
+        filetime::set_file_mtime(dst_path, mtime)?;
 
         // We won't apply symlinks and permissions by design.
 
