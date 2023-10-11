@@ -20,7 +20,9 @@ fn init_name_table() -> HashMap<&'static str, ZipEncoding> {
 
 pub fn get_encoding(name: &str) -> Option<ZipEncoding> {
     let name_label = name.as_bytes();
-    let from_name_table = NAME_TABLE.get_or_init(init_name_table).get(name);
+    let from_name_table = NAME_TABLE
+        .get_or_init(init_name_table)
+        .get(&name.to_lowercase() as &str);
     if let Some(&encoding) = from_name_table {
         Some(encoding)
     } else {
