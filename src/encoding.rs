@@ -3,19 +3,27 @@ use std::sync::OnceLock;
 
 use encoding_rs::Encoding;
 
-static NAME_TABLE: OnceLock<HashMap<&'static str, &'static [u8]>> = OnceLock::new();
+#[derive(Clone, Copy)]
+pub enum ZipEncoding {
+    Cp437,
+    EncodingRs(&'static Encoding),
+}
 
-fn init_name_table() -> HashMap<&'static str, &'static [u8]> {
+static NAME_TABLE: OnceLock<HashMap<&'static str, ZipEncoding>> = OnceLock::new();
+
+fn init_name_table() -> HashMap<&'static str, ZipEncoding> {
     let mut m = HashMap::new();
-    m.insert("cp932", b"shift_jis" as &'static [u8]);
+    m.insert("cp437", ZipEncoding::Cp437);
+    m.insert("cp932", ZipEncoding::EncodingRs(encoding_rs::SHIFT_JIS));
     m
 }
 
-pub fn get_encoding(name: &str) -> Option<&'static Encoding> {
+pub fn get_encoding(name: &str) -> Option<ZipEncoding> {
     let name_label = name.as_bytes();
-    let label: &[u8] = NAME_TABLE
-        .get_or_init(init_name_table)
-        .get(name)
-        .unwrap_or(&name_label);
-    Encoding::for_label(label)
+    let from_name_table = NAME_TABLE.get_or_init(init_name_table).get(name);
+    if let Some(&encoding) = from_name_table {
+        Some(encoding)
+    } else {
+        Encoding::for_label(name_label).map(ZipEncoding::EncodingRs)
+    }
 }

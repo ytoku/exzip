@@ -9,9 +9,8 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{bail, Context as _, Result};
 use clap::Parser;
-use encoding_rs::Encoding;
 
-use crate::encoding::get_encoding;
+use crate::encoding::{get_encoding, ZipEncoding};
 use crate::interrupt::{interrupted, register_ctrlc};
 use crate::tempfile_utils::{tempdir_with_prefix_in, RelativePathFrom};
 use crate::zip_ext::ZipFileExt;
@@ -95,7 +94,7 @@ fn unzip<R>(
     archive: &mut zip::ZipArchive<R>,
     inner_root: &Path,
     dst_root: &Path,
-    encoding: &'static Encoding,
+    encoding: ZipEncoding,
 ) -> Result<bool>
 where
     R: io::Read + io::Seek,
@@ -138,10 +137,7 @@ where
     Ok(true)
 }
 
-fn get_inner_root<R>(
-    archive: &mut zip::ZipArchive<R>,
-    encoding: &'static Encoding,
-) -> Option<PathBuf>
+fn get_inner_root<R>(archive: &mut zip::ZipArchive<R>, encoding: ZipEncoding) -> Option<PathBuf>
 where
     R: io::Read + io::Seek,
 {
@@ -174,7 +170,7 @@ where
     root
 }
 
-fn detect_filename_encoding<R>(archive: &mut zip::ZipArchive<R>) -> &'static Encoding
+fn detect_filename_encoding<R>(archive: &mut zip::ZipArchive<R>) -> ZipEncoding
 where
     R: io::Read + io::Seek,
 {
@@ -189,10 +185,10 @@ where
             }
         }
         if !mismatch {
-            return candidate_encoding;
+            return ZipEncoding::EncodingRs(candidate_encoding);
         }
     }
-    encoding_rs::WINDOWS_1252 // latin1
+    ZipEncoding::Cp437
 }
 
 fn extract(zipfile: &Path, target_path: &Path, args: &Args) -> Result<()> {
