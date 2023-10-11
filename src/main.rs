@@ -147,18 +147,19 @@ where
     Ok(true)
 }
 
-fn get_inner_root<R>(archive: &mut zip::ZipArchive<R>, encoding: ZipEncoding) -> Option<PathBuf>
+fn get_inner_root<R>(archive: &mut zip::ZipArchive<R>, encoding: ZipEncoding) -> Result<PathBuf>
 where
     R: io::Read + io::Seek,
 {
     if archive.is_empty() {
-        return Some(PathBuf::new());
+        return Ok(PathBuf::new());
     }
 
     let mut root: Option<PathBuf> = None;
     for i in 0..archive.len() {
         let file = archive.by_index_raw(i).unwrap();
-        let mut path = sanitize_path(&file.decoded_name_lossy(encoding))?;
+        let mut path =
+            sanitize_path(&file.decoded_name_lossy(encoding)).context("Malformed zip file")?;
         if is_ignored_file(&path) {
             continue;
         }
@@ -167,17 +168,17 @@ where
         }
         if let Some(root) = &root {
             if !path.starts_with(root) {
-                return Some(PathBuf::new());
+                return Ok(PathBuf::new());
             }
         } else if let Some(name) = path.iter().next() {
             // The first found directory
             root = Some(PathBuf::from(name));
         } else {
             // There is a file in root
-            return Some(PathBuf::new());
+            return Ok(PathBuf::new());
         }
     }
-    root
+    Ok(root.unwrap_or_default())
 }
 
 fn detect_filename_encoding<R>(archive: &mut zip::ZipArchive<R>) -> ZipEncoding
