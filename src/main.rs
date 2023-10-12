@@ -34,7 +34,7 @@ where
     W: io::Write + ?Sized,
 {
     let mut written_length = 0usize;
-    let mut buf = [0; 128 * 1024];
+    let mut buf = [0u8; 128 * 1024];
     let mut eof = false;
     while !eof {
         let mut pos = 0usize;
