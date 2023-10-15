@@ -28,6 +28,7 @@ struct Args {
     zipfiles: Vec<String>,
 }
 
+// TODO: Readへのwrapperで再実装を検討。interrupted呼び出し回数が増えて遅くなる？
 fn interruptable_copy<R, W>(reader: &mut R, writer: &mut W) -> Result<u64>
 where
     R: io::Read + ?Sized,

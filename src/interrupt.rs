@@ -9,6 +9,7 @@ pub fn register_ctrlc() {
     .expect("Error setting Ctrl-C handler");
 }
 
+#[inline]
 pub fn interrupted() -> bool {
     INTERRUPTED.load(Ordering::SeqCst)
 }
