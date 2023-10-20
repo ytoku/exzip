@@ -273,6 +273,10 @@ fn main() {
             eprintln!("Not found {}", filepath.display());
             std::process::exit(EXIT_ERROR);
         }
+        if !filepath.is_file() {
+            eprintln!("Not a file {}", filepath.display());
+            std::process::exit(EXIT_ERROR);
+        }
     }
 
     for filepath in &args.zipfiles {
