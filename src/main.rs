@@ -92,7 +92,18 @@ fn sanitize_path(path: &Path) -> Option<PathBuf> {
 }
 
 fn is_ignored_file(path: &Path) -> bool {
-    path.iter().any(|name| name == "__MACOSX")
+    if path.iter().any(|name| name == "__MACOSX") {
+        return true;
+    }
+    if let Some(filename) = path.file_name() {
+        if ["Thumbs.db", ".DS_Store"]
+            .iter()
+            .any(|name| &filename == name)
+        {
+            return true;
+        }
+    }
+    false
 }
 
 fn unzip<R>(
@@ -127,6 +138,11 @@ where
         } else {
             path
         };
+
+        if is_ignored_file(&unstripped_path) {
+            println!("Skip {}", unstripped_path.to_string_lossy());
+            continue;
+        }
 
         println!("{}", unstripped_path.to_string_lossy());
         if file.is_dir() {
