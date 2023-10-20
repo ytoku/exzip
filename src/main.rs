@@ -13,6 +13,7 @@ use cap_primitives::time::SystemTime;
 use cap_std::ambient_authority;
 use cap_std::fs::Dir;
 use clap::Parser;
+use zip::ZipArchive;
 
 use crate::encoding::{get_encoding, ZipEncoding};
 use crate::interrupt::{interrupted, register_ctrlc};
@@ -64,8 +65,9 @@ where
 fn sanitize_path(path: &Path) -> Option<PathBuf> {
     let mut result = PathBuf::new();
     for component in path.components() {
+        use std::path::Component;
         match component {
-            std::path::Component::Normal(os_str) => {
+            Component::Normal(os_str) => {
                 // Reject a component which contains NUL character
                 #[cfg(windows)]
                 compile_error!("wide character is not supported");
@@ -78,7 +80,7 @@ fn sanitize_path(path: &Path) -> Option<PathBuf> {
                 }
                 result.push(os_str);
             }
-            std::path::Component::ParentDir => {
+            Component::ParentDir => {
                 if result.as_os_str() == "" {
                     return None;
                 }
@@ -107,11 +109,11 @@ fn is_ignored_file(path: &Path) -> bool {
 }
 
 fn unzip<R>(
-    archive: &mut zip::ZipArchive<R>,
+    archive: &mut ZipArchive<R>,
     inner_root: &Path,
     dst_root: &Dir,
     encoding: ZipEncoding,
-) -> Result<bool>
+) -> Result<()>
 where
     R: io::Read + io::Seek,
 {
@@ -168,10 +170,10 @@ where
             bail!("Interrupted");
         }
     }
-    Ok(true)
+    Ok(())
 }
 
-fn get_inner_root<R>(archive: &mut zip::ZipArchive<R>, encoding: ZipEncoding) -> Result<PathBuf>
+fn get_inner_root<R>(archive: &mut ZipArchive<R>, encoding: ZipEncoding) -> Result<PathBuf>
 where
     R: io::Read + io::Seek,
 {
@@ -205,7 +207,7 @@ where
     Ok(root.unwrap_or_default())
 }
 
-fn detect_filename_encoding<R>(archive: &mut zip::ZipArchive<R>) -> ZipEncoding
+fn detect_filename_encoding<R>(archive: &mut ZipArchive<R>) -> ZipEncoding
 where
     R: io::Read + io::Seek,
 {
@@ -233,7 +235,7 @@ fn extract_into(zipfile: &Path, target_path: &Path, args: &Args) -> Result<()> {
 
     let file = File::open(zipfile).unwrap();
     let reader = BufReader::new(file);
-    let mut archive = zip::ZipArchive::new(reader).unwrap();
+    let mut archive = ZipArchive::new(reader).unwrap();
 
     let encoding = if let Some(encoding_name) = &args.oenc {
         get_encoding(encoding_name).unwrap()
