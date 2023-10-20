@@ -28,7 +28,7 @@ struct Args {
     #[arg(short = 'O')]
     oenc: Option<String>,
 
-    zipfiles: Vec<String>,
+    zipfiles: Vec<PathBuf>,
 }
 
 // TODO: Readへのwrapperで再実装を検討。interrupted呼び出し回数が増えて遅くなる？
@@ -258,24 +258,22 @@ fn main() {
         }
     }
 
-    for filename in &args.zipfiles {
-        if !filename.ends_with(".zip") {
-            eprintln!("Bad filename {}", filename);
+    for filepath in &args.zipfiles {
+        if !filepath.extension().is_some_and(|ext| ext == "zip") {
+            eprintln!("Bad filename {}", filepath.display());
             std::process::exit(EXIT_ERROR);
         }
-        if !Path::new(&filename).exists() {
-            eprintln!("Not found {}", filename);
+        if !filepath.exists() {
+            eprintln!("Not found {}", filepath.display());
             std::process::exit(EXIT_ERROR);
         }
     }
 
-    for filename in &args.zipfiles {
-        let target_path = Path::new(filename.strip_suffix(".zip").unwrap());
-
-        let filepath = Path::new(&filename);
+    for filepath in &args.zipfiles {
+        let target_path = filepath.with_extension("");
 
         let mut success = true;
-        extract(filepath, target_path, &args).unwrap_or_else(|err| {
+        extract(filepath, &target_path, &args).unwrap_or_else(|err| {
             eprintln!("Error: {:?}", err);
             success = false;
         });
