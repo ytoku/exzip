@@ -7,11 +7,13 @@ edition = "2021"
 
 [dependencies]
 anyhow = "1.0.75"
+cap-fs-ext = "2.0.0"
+cap-primitives = "2.0.0"
+cap-std = "2.0.0"
 chrono = "0.4.31"
 clap = { version = "4.0.27", features = ["derive"] }
 ctrlc = "3.2.3"
 encoding_rs = "0.8.33"
-filetime = "0.2.22"
 pathdiff = "0.2.1"
 tempfile = "3.4.0"
 zip = { version = "0.6.2" }

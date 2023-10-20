@@ -8,8 +8,11 @@ use std::io::{self, BufReader};
 use std::path::{Path, PathBuf};
 
 use anyhow::{bail, Context as _, Result};
+use cap_fs_ext::{DirExt, SystemTimeSpec};
+use cap_primitives::time::SystemTime;
+use cap_std::ambient_authority;
+use cap_std::fs::Dir;
 use clap::Parser;
-use filetime::FileTime;
 
 use crate::encoding::{get_encoding, ZipEncoding};
 use crate::interrupt::{interrupted, register_ctrlc};
@@ -95,7 +98,7 @@ fn is_ignored_file(path: &Path) -> bool {
 fn unzip<R>(
     archive: &mut zip::ZipArchive<R>,
     inner_root: &Path,
-    dst_root: &Path,
+    dst_root: &Dir,
     encoding: ZipEncoding,
 ) -> Result<bool>
 where
@@ -119,25 +122,29 @@ where
             }
             continue;
         };
-        let dst_path = dst_root.join(path);
+        let path = if path.as_os_str() == "" {
+            Path::new(".")
+        } else {
+            path
+        };
 
         println!("{}", unstripped_path.to_string_lossy());
         if file.is_dir() {
-            fs::create_dir_all(&dst_path)?;
+            dst_root.create_dir_all(path)?;
         } else if file.is_file() {
-            fs::create_dir_all(dst_path.parent().unwrap())?;
-            let mut outfile = File::create(&dst_path)?;
+            dst_root.create_dir_all(path.parent().unwrap())?;
+            let mut outfile = dst_root.create(path)?;
             interruptable_copy(&mut file, &mut outfile)?;
         }
 
         // Set last modified time
-        let mtime = FileTime::from_system_time(
+        let mtime = SystemTimeSpec::Absolute(SystemTime::from_std(
             file.last_modified_chrono()
                 .earliest() // for DST overlap
                 .context("Bad mtime")?
                 .into(),
-        );
-        filetime::set_file_mtime(dst_path, mtime)?;
+        ));
+        dst_root.set_mtime(path, mtime)?;
 
         // We won't apply symlinks and permissions by design.
 
@@ -206,8 +213,9 @@ where
 fn extract(zipfile: &Path, target_path: &Path, args: &Args) -> Result<()> {
     println!("unzip {}", zipfile.display());
 
-    let temp_dir = tempdir_with_prefix_in(zipfile.parent().unwrap(), "exzip-")?;
-    let temp_dir_path = temp_dir.relative_path_from("./");
+    let temp_dir_obj = tempdir_with_prefix_in(zipfile.parent().unwrap(), "exzip-")?;
+    let temp_dir_path = temp_dir_obj.relative_path_from("./");
+    let temp_dir = Dir::open_ambient_dir(temp_dir_obj.path(), ambient_authority())?;
 
     let file = File::open(zipfile).unwrap();
     let reader = BufReader::new(file);
@@ -222,18 +230,18 @@ fn extract(zipfile: &Path, target_path: &Path, args: &Args) -> Result<()> {
     let inner_root =
         get_inner_root(&mut archive, encoding).context("Failed to determine inner root")?;
 
-    unzip(&mut archive, &inner_root, &temp_dir_path, encoding)?;
+    unzip(&mut archive, &inner_root, &temp_dir, encoding)?;
 
     println!(
         "rename {} -> {}",
-        &temp_dir_path.display(),
+        temp_dir_path.display(),
         target_path.display()
     );
 
     if target_path.exists() {
         fs::remove_dir_all(target_path).expect("Failed to remove the old directory");
     }
-    fs::rename(temp_dir.path(), target_path).expect("Failed to move the directory");
+    fs::rename(temp_dir_obj.path(), target_path).expect("Failed to move the directory");
 
     Ok(())
 }
