@@ -265,7 +265,7 @@ fn main() {
     }
 
     for filepath in &args.zipfiles {
-        if !filepath.extension().is_some_and(|ext| ext == "zip") {
+        if filepath.extension().is_none() {
             eprintln!("Bad filename {}", filepath.display());
             std::process::exit(EXIT_ERROR);
         }
