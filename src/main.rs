@@ -210,9 +210,7 @@ where
     ZipEncoding::Cp437
 }
 
-fn extract(zipfile: &Path, target_path: &Path, args: &Args) -> Result<()> {
-    println!("unzip {}", zipfile.display());
-
+fn extract_into(zipfile: &Path, target_path: &Path, args: &Args) -> Result<()> {
     let temp_dir_obj = tempdir_with_prefix_in(zipfile.parent().unwrap(), "exzip-")?;
     let temp_dir_path = temp_dir_obj.relative_path_from("./");
     let temp_dir = Dir::open_ambient_dir(temp_dir_obj.path(), ambient_authority())?;
@@ -246,6 +244,14 @@ fn extract(zipfile: &Path, target_path: &Path, args: &Args) -> Result<()> {
     Ok(())
 }
 
+fn extract(zipfile: &Path, args: &Args) -> Result<()> {
+    println!("unzip {}", zipfile.display());
+
+    let target_path = zipfile.with_extension("");
+
+    extract_into(zipfile, &target_path, args)
+}
+
 fn main() {
     register_ctrlc();
 
@@ -270,10 +276,8 @@ fn main() {
     }
 
     for filepath in &args.zipfiles {
-        let target_path = filepath.with_extension("");
-
         let mut success = true;
-        extract(filepath, &target_path, &args).unwrap_or_else(|err| {
+        extract(filepath, &args).unwrap_or_else(|err| {
             eprintln!("Error: {:?}", err);
             success = false;
         });
