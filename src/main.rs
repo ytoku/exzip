@@ -128,17 +128,16 @@ where
         // https://github.com/zip-rs/zip/blob/3e88fe66c941d411cff5cf49778ba08c2ed93801/src/read.rs#L671
         let unstripped_path =
             sanitize_path(&file.decoded_name_lossy(encoding)).context("Malformed zip file")?;
-        let Ok(path) = unstripped_path.strip_prefix(inner_root) else {
-            println!("Skip {}", unstripped_path.to_string_lossy());
-            if !is_ignored_file(&unstripped_path) {
-                bail!("Unexpected strip_prefix: {:?}", inner_root);
+        let path = match unstripped_path.strip_prefix(inner_root) {
+            Ok(path) if path.as_os_str() == "" => Path::new("."),
+            Ok(path) => path,
+            _ => {
+                println!("Skip {}", unstripped_path.to_string_lossy());
+                if !is_ignored_file(&unstripped_path) {
+                    bail!("Unexpected strip_prefix: {:?}", inner_root);
+                }
+                continue;
             }
-            continue;
-        };
-        let path = if path.as_os_str() == "" {
-            Path::new(".")
-        } else {
-            path
         };
 
         if is_ignored_file(&unstripped_path) {
