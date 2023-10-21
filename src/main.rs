@@ -118,7 +118,7 @@ where
     R: io::Read + io::Seek,
 {
     for i in 0..archive.len() {
-        let mut file = archive.by_index(i).unwrap();
+        let mut file = archive.by_index(i)?;
         // The current implementation ignores Language encoding flag
         // (Bit 11 of general purpose big flag) which means the
         // filename is encoded by utf-8.  encoding_rs crate does not
@@ -183,7 +183,7 @@ where
 
     let mut root: Option<PathBuf> = None;
     for i in 0..archive.len() {
-        let file = archive.by_index_raw(i).unwrap();
+        let file = archive.by_index_raw(i)?;
         let mut path =
             sanitize_path(&file.decoded_name_lossy(encoding)).context("Malformed zip file")?;
         if is_ignored_file(&path) {
@@ -207,14 +207,14 @@ where
     Ok(root.unwrap_or_default())
 }
 
-fn detect_filename_encoding<R>(archive: &mut ZipArchive<R>) -> ZipEncoding
+fn detect_filename_encoding<R>(archive: &mut ZipArchive<R>) -> Result<ZipEncoding>
 where
     R: io::Read + io::Seek,
 {
     for candidate_encoding in &[encoding_rs::UTF_8, encoding_rs::SHIFT_JIS] {
         let mut mismatch = false;
         for i in 0..archive.len() {
-            let file = archive.by_index_raw(i).unwrap();
+            let file = archive.by_index_raw(i)?;
             let (_cow, _encoding, malformed) = candidate_encoding.decode(file.name_raw());
             if malformed {
                 mismatch = true;
@@ -222,10 +222,10 @@ where
             }
         }
         if !mismatch {
-            return ZipEncoding::EncodingRs(candidate_encoding);
+            return Ok(ZipEncoding::EncodingRs(candidate_encoding));
         }
     }
-    ZipEncoding::Cp437
+    Ok(ZipEncoding::Cp437)
 }
 
 fn extract_into(zipfile: &Path, target_path: &Path, args: &Args) -> Result<()> {
@@ -233,14 +233,14 @@ fn extract_into(zipfile: &Path, target_path: &Path, args: &Args) -> Result<()> {
     let temp_dir_path = temp_dir_obj.relative_path_from("./");
     let temp_dir = Dir::open_ambient_dir(temp_dir_obj.path(), ambient_authority())?;
 
-    let file = File::open(zipfile).unwrap();
+    let file = File::open(zipfile)?;
     let reader = BufReader::new(file);
-    let mut archive = ZipArchive::new(reader).unwrap();
+    let mut archive = ZipArchive::new(reader)?;
 
     let encoding = if let Some(encoding_name) = &args.oenc {
         get_encoding(encoding_name).unwrap()
     } else {
-        detect_filename_encoding(&mut archive)
+        detect_filename_encoding(&mut archive)?
     };
 
     let inner_root =
