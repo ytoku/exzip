@@ -17,7 +17,7 @@ use zip::ZipArchive;
 
 use crate::encoding::{get_encoding, ZipEncoding};
 use crate::interrupt::{interrupted, register_ctrlc};
-use crate::tempfile_utils::{tempdir_with_prefix_in, RelativePathFrom};
+use crate::tempfile_utils::{tempdir_with_prefix_in, TempDirExt};
 use crate::zip_ext::ZipFileExt;
 
 const EXIT_ERROR: i32 = 1;

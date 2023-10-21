@@ -3,11 +3,11 @@ use std::path::{Path, PathBuf};
 
 use tempfile::{Builder, TempDir};
 
-pub trait RelativePathFrom {
+pub trait TempDirExt {
     fn relative_path_from<P: AsRef<Path>>(&self, from: P) -> PathBuf;
 }
 
-impl RelativePathFrom for TempDir {
+impl TempDirExt for TempDir {
     fn relative_path_from<P: AsRef<Path>>(&self, from: P) -> PathBuf {
         let cwd = from.as_ref().canonicalize().unwrap();
         pathdiff::diff_paths(self.path(), cwd).unwrap()
