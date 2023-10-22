@@ -81,7 +81,7 @@ fn sanitize_path(path: &Path) -> Option<PathBuf> {
                 result.push(os_str);
             }
             Component::ParentDir => {
-                if result.as_os_str() == "" {
+                if result == Path::new("") {
                     return None;
                 }
                 result.pop();
@@ -129,7 +129,7 @@ where
         let unstripped_path =
             sanitize_path(&file.decoded_name_lossy(encoding)).context("Malformed zip file")?;
         let path = match unstripped_path.strip_prefix(inner_root) {
-            Ok(path) if path.as_os_str() == "" => Path::new("."),
+            Ok(path) if path == Path::new("") => Path::new("."),
             Ok(path) => path,
             _ => {
                 println!("Skip {}", unstripped_path.to_string_lossy());
