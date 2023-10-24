@@ -266,6 +266,23 @@ fn extract(zipfile: &Path, args: &Args) -> Result<()> {
 
     let target_path = zipfile.with_extension("");
 
+    if target_path.exists() {
+        println!("Already exists: {}", target_path.display());
+        let input = dialoguer::Confirm::new()
+            .with_prompt("Replace?")
+            .default(false)
+            .interact()
+            .map_err(|err| match err {
+                dialoguer::Error::IO(ref inner) if inner.kind() == io::ErrorKind::Interrupted => {
+                    anyhow::anyhow!("Interrupted")
+                }
+                _ => anyhow::Error::from(err),
+            })?;
+        if !input {
+            return Ok(());
+        }
+    }
+
     extract_into(zipfile, &target_path, args)
 }
 
