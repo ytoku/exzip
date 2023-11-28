@@ -155,13 +155,13 @@ where
         }
 
         // Set last modified time
-        let mtime = SystemTimeSpec::Absolute(SystemTime::from_std(
-            file.last_modified_chrono()
-                .earliest() // for DST overlap
-                .context("Bad mtime")?
-                .into(),
-        ));
-        dst_root.set_mtime(path, mtime)?;
+        // for DST overlap, select the earliest datetime of ambiguous one.
+        // Some zip files contain invalid mtime such as 1980-00-00 00:00:00.
+        // In such case, we do not set the mtime.
+        if let Some(mtime_datetime) = file.last_modified_chrono().earliest(/* for DST overlap */) {
+            let mtime = SystemTimeSpec::Absolute(SystemTime::from_std(mtime_datetime.into()));
+            dst_root.set_mtime(path, mtime)?;
+        }
 
         // We won't apply symlinks and permissions by design.
 
