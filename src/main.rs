@@ -119,13 +119,6 @@ where
 {
     for i in 0..archive.len() {
         let mut file = archive.by_index(i)?;
-        // The current implementation ignores Language encoding flag
-        // (Bit 11 of general purpose bit flag) which means the
-        // filename is encoded by utf-8.  zip crate does not reveal
-        // the flag but we can get the offset of the central header by
-        // ZipFile::central_header_start. So we can read the flag from
-        // the zip file if we need it.
-        // https://github.com/zip-rs/zip/blob/3e88fe66c941d411cff5cf49778ba08c2ed93801/src/read.rs#L671
         let unstripped_path =
             sanitize_path(&file.decoded_name_lossy(encoding)).context("Malformed zip file")?;
         let path = match unstripped_path.strip_prefix(inner_root) {
@@ -214,6 +207,9 @@ where
         let mut mismatch = false;
         for i in 0..archive.len() {
             let file = archive.by_index_raw(i)?;
+            if file.is_utf8() {
+                continue;
+            }
             let (_cow, _encoding, malformed) = candidate_encoding.decode(file.name_raw());
             if malformed {
                 mismatch = true;
