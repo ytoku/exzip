@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::sync::OnceLock;
+use std::sync::LazyLock;
 
 use encoding_rs::Encoding;
 
@@ -9,20 +9,16 @@ pub enum ZipEncoding {
     EncodingRs(&'static Encoding),
 }
 
-static NAME_TABLE: OnceLock<HashMap<&'static str, ZipEncoding>> = OnceLock::new();
-
-fn init_name_table() -> HashMap<&'static str, ZipEncoding> {
+static NAME_TABLE: LazyLock<HashMap<&'static str, ZipEncoding>> = LazyLock::new(|| {
     let mut m = HashMap::new();
     m.insert("cp437", ZipEncoding::Cp437);
     m.insert("cp932", ZipEncoding::EncodingRs(encoding_rs::SHIFT_JIS));
     m
-}
+});
 
 pub fn get_encoding(name: &str) -> Option<ZipEncoding> {
     let name_label = name.as_bytes();
-    let from_name_table = NAME_TABLE
-        .get_or_init(init_name_table)
-        .get(&name.to_lowercase() as &str);
+    let from_name_table = NAME_TABLE.get(&name.to_lowercase() as &str);
     if let Some(&encoding) = from_name_table {
         Some(encoding)
     } else {
