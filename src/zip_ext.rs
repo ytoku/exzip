@@ -36,7 +36,7 @@ impl<'a> ZipFileExt<'a> for ZipFile<'a> {
         // access to the zip file reader.
         // https://github.com/zip-rs/zip/blob/3e88fe66c941d411cff5cf49778ba08c2ed93801/src/read.rs#L671
         let (utf8_cow, _encoding, malformed) = encoding_rs::UTF_8.decode(self.name_raw());
-        return !malformed && self.name() == utf8_cow;
+        !malformed && self.name() == utf8_cow
     }
 
     fn last_modified_chrono(&self) -> LocalResult<DateTime<Local>> {

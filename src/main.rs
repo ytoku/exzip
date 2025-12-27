@@ -74,7 +74,7 @@ fn sanitize_path(path: &Path) -> Option<PathBuf> {
                 #[cfg(unix)]
                 {
                     use std::os::unix::ffi::OsStrExt;
-                    if os_str.as_bytes().iter().any(|&x| x == 0u8) {
+                    if os_str.as_bytes().contains(&0u8) {
                         return None;
                     }
                 }
