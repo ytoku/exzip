@@ -7,7 +7,7 @@ use std::fs::{self, File};
 use std::io::{self, BufReader};
 use std::path::{Path, PathBuf};
 
-use anyhow::{bail, Context as _, Result};
+use anyhow::{Context as _, Result, bail};
 use cap_fs_ext::{DirExt, SystemTimeSpec};
 use cap_primitives::time::SystemTime;
 use cap_std::ambient_authority;
@@ -15,9 +15,9 @@ use cap_std::fs::Dir;
 use clap::Parser;
 use zip::ZipArchive;
 
-use crate::encoding::{get_encoding, ZipEncoding};
+use crate::encoding::{ZipEncoding, get_encoding};
 use crate::interrupt::{interrupted, register_ctrlc};
-use crate::tempfile_utils::{tempdir_with_prefix_in, TempDirExt};
+use crate::tempfile_utils::{TempDirExt, tempdir_with_prefix_in};
 use crate::zip_ext::ZipFileExt;
 
 const EXIT_ERROR: i32 = 1;
@@ -97,13 +97,12 @@ fn is_ignored_file(path: &Path) -> bool {
     if path.iter().any(|name| name == "__MACOSX") {
         return true;
     }
-    if let Some(filename) = path.file_name() {
-        if ["Thumbs.db", ".DS_Store"]
+    if let Some(filename) = path.file_name()
+        && ["Thumbs.db", ".DS_Store"]
             .iter()
             .any(|name| &filename == name)
-        {
-            return true;
-        }
+    {
+        return true;
     }
     false
 }
@@ -287,11 +286,11 @@ fn main() {
 
     let args = Args::parse();
 
-    if let Some(encoding_name) = &args.oenc {
-        if get_encoding(encoding_name).is_none() {
-            println!("Error: Unknown encoding {}", encoding_name);
-            std::process::exit(EXIT_ERROR);
-        }
+    if let Some(encoding_name) = &args.oenc
+        && get_encoding(encoding_name).is_none()
+    {
+        println!("Error: Unknown encoding {}", encoding_name);
+        std::process::exit(EXIT_ERROR);
     }
 
     for filepath in &args.zipfiles {
