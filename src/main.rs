@@ -125,7 +125,7 @@ where
             Ok(path) if path == Path::new("") => Path::new("."),
             Ok(path) => path,
             _ => {
-                println!("Skip {}", unstripped_path.to_string_lossy());
+                println!("Skip {}", unstripped_path.to_string_lossy().escape_debug());
                 if !is_ignored_file(&unstripped_path) {
                     bail!("Unexpected strip_prefix: {:?}", inner_root);
                 }
@@ -134,11 +134,11 @@ where
         };
 
         if is_ignored_file(&unstripped_path) {
-            println!("Skip {}", unstripped_path.to_string_lossy());
+            println!("Skip {}", unstripped_path.to_string_lossy().escape_debug());
             continue;
         }
 
-        println!("{}", unstripped_path.to_string_lossy());
+        println!("{}", unstripped_path.to_string_lossy().escape_debug());
         if file.is_dir() {
             dst_root.create_dir_all(path)?;
         } else if file.is_file() {
@@ -245,8 +245,8 @@ fn extract_into(zipfile: &Path, target_path: &Path, args: &Args) -> Result<()> {
 
     println!(
         "rename {} -> {}",
-        temp_dir_path.display(),
-        target_path.display()
+        temp_dir_path.to_string_lossy().escape_debug(),
+        target_path.to_string_lossy().escape_debug()
     );
 
     if target_path.exists() {
@@ -258,12 +258,15 @@ fn extract_into(zipfile: &Path, target_path: &Path, args: &Args) -> Result<()> {
 }
 
 fn extract(zipfile: &Path, args: &Args) -> Result<()> {
-    println!("unzip {}", zipfile.display());
+    println!("unzip {}", zipfile.to_string_lossy().escape_debug());
 
     let target_path = zipfile.with_extension("");
 
     if target_path.exists() {
-        println!("Already exists: {}", target_path.display());
+        println!(
+            "Already exists: {}",
+            target_path.to_string_lossy().escape_debug()
+        );
         let input = dialoguer::Confirm::new()
             .with_prompt("Replace?")
             .default(false)
@@ -296,15 +299,15 @@ fn main() {
 
     for filepath in &args.zipfiles {
         if filepath.extension().is_none() {
-            eprintln!("Bad filename {}", filepath.display());
+            eprintln!("Bad filename {}", filepath.to_string_lossy().escape_debug());
             std::process::exit(EXIT_ERROR);
         }
         if !filepath.exists() {
-            eprintln!("Not found {}", filepath.display());
+            eprintln!("Not found {}", filepath.to_string_lossy().escape_debug());
             std::process::exit(EXIT_ERROR);
         }
         if !filepath.is_file() {
-            eprintln!("Not a file {}", filepath.display());
+            eprintln!("Not a file {}", filepath.to_string_lossy().escape_debug());
             std::process::exit(EXIT_ERROR);
         }
     }
