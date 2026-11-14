@@ -119,7 +119,8 @@ where
     for i in 0..archive.len() {
         let mut file = archive.by_index(i)?;
         let unstripped_path =
-            sanitize_path(&file.decoded_name_lossy(encoding)).context("Malformed zip file")?;
+            sanitize_path(&file.decoded_name_lossy(encoding).context("Invalid name")?)
+                .context("Malformed zip file")?;
         let path = match unstripped_path.strip_prefix(inner_root) {
             Ok(path) if path == Path::new("") => Path::new("."),
             Ok(path) => path,
@@ -175,8 +176,8 @@ where
     let mut root: Option<PathBuf> = None;
     for i in 0..archive.len() {
         let file = archive.by_index_raw(i)?;
-        let mut path =
-            sanitize_path(&file.decoded_name_lossy(encoding)).context("Malformed zip file")?;
+        let mut path = sanitize_path(&file.decoded_name_lossy(encoding).context("Invalid name")?)
+            .context("Malformed zip file")?;
         if is_ignored_file(&path) {
             continue;
         }

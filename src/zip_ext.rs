@@ -7,23 +7,25 @@ use zip::read::ZipFile;
 use crate::encoding::ZipEncoding;
 
 pub trait ZipFileExt<'a, R: Read> {
-    fn decoded_name_lossy(&self, encoding: ZipEncoding) -> PathBuf;
+    fn decoded_name_lossy(&self, encoding: ZipEncoding) -> Option<PathBuf>;
     fn is_utf8(&self) -> bool;
 
     fn last_modified_chrono(&self) -> LocalResult<DateTime<Local>>;
 }
 
 impl<'a, R: Read> ZipFileExt<'a, R> for ZipFile<'a, R> {
-    fn decoded_name_lossy(&self, encoding: ZipEncoding) -> PathBuf {
+    fn decoded_name_lossy(&self, encoding: ZipEncoding) -> Option<PathBuf> {
         if self.is_utf8() {
-            return PathBuf::from(self.name());
+            return self.enclosed_name();
         }
         match encoding {
-            ZipEncoding::Cp437 => PathBuf::from(self.name()),
+            ZipEncoding::Cp437 => self.enclosed_name(),
             ZipEncoding::EncodingRs(encoding) => {
+                // The enclosed name is unnecessary here because
+                // callers are responsible for sanitizing the path.
                 let (decoded_name_cow, _, _malformed) = encoding.decode(self.name_raw());
                 let decoded_name = decoded_name_cow.as_ref();
-                PathBuf::from(decoded_name)
+                Some(PathBuf::from(decoded_name))
             }
         }
     }
@@ -37,7 +39,8 @@ impl<'a, R: Read> ZipFileExt<'a, R> for ZipFile<'a, R> {
         // access to the zip file reader.
         // https://github.com/zip-rs/zip2/blob/v7.0.0/src/read.rs#L1375
         let (utf8_cow, _encoding, malformed) = encoding_rs::UTF_8.decode(self.name_raw());
-        !malformed && self.name() == utf8_cow
+        let Ok(name) = self.name() else { return false };
+        !malformed && name == utf8_cow
     }
 
     fn last_modified_chrono(&self) -> LocalResult<DateTime<Local>> {
